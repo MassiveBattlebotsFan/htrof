@@ -36,12 +36,12 @@ class Stack:
         return len(self._stack_array)
 
 class Machine:
-    """Experimental NPN language core machine"""
-    __version__ = "v0.0.4"
+    """Experimental RPN language core machine"""
+    __version__ = "v0.0.5"
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._noop,"==":self._equ,"!=":self._inequ,"do":self._noop,"undo":self._noop,"end":self._noop,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._noop,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
         self._special_symbols = {"null":None,";":"\n"}
         self._labels = {} #{"label" : stack_index}
         self._vars = {"_wait" : 1} #{"varname" : value}
@@ -50,7 +50,7 @@ class Machine:
         self._prog = []
         self._prog_index = 0
         self._subroutines = Stack()
-        self._conditionals = [] #[{begin_index:end_index}]
+        self._conditionals = {} #[{begin_index:end_index}]
         self._current_symbol = None
         self._symbols["clr"] = self._stack.clear_stack
         self._symbols["pop"] = self._stack.pop
@@ -98,6 +98,9 @@ class Machine:
         print(exit_msg)
 
     def _load_prog(self, lines):
+        old_ind = self._prog_index
+        prog_clone = self._prog
+        current_cond = None
         for line in lines:
             self._current_symbol = self._symbols.get(line.lower())
             if self._current_symbol == None:
@@ -124,13 +127,23 @@ class Machine:
                     except ValueError:
                         self._current_symbol = None
                 if self._current_symbol != None:
-                    self._prog.append((self._current_symbol,False))
+                    prog_clone.append((self._current_symbol,False))
                     self._prog_index += 1
                 else:
                     print("ERR: UNKNOWN SYMBOL")
             else:
-                self._prog.append((self._current_symbol,True))
+                if line.lower() == "if" or line.lower() == "unif":
+                    current_cond = self._prog_index
+                if line.lower() == "end":
+                    self._conditionals[current_cond] = self._prog_index
+                    current_cond = None
+                prog_clone.append((self._current_symbol,True))
                 self._prog_index += 1
+        if current_cond != None:
+            print("ERR: UNCLOSED CONDITIONAL")
+            self._prog_index = old_ind
+        else:
+            self._prog = prog_clone
 
     def interpreter(self):
         while True:
@@ -149,6 +162,9 @@ class Machine:
                 continue
             if prog_input.lower() == "clearstack":
                 self._stack.clear_stack()
+                continue
+            if prog_input.lower() == "list":
+                print(self._prog)
                 continue
             prog_input = prog_input.split()
             print(prog_input)
@@ -239,6 +255,14 @@ class Machine:
             self._stack.push(1)
         else:
             self._stack.push(0)
+    def _if(self):
+        a = self._stack.pop()
+        if a == 0:
+            self._prog_index = self._conditionals.get(self._prog_index)
+    def _unif(self):
+        a = self._stack.pop()
+        if a != 0:
+            self._prog_index = self._conditionals.get(self._prog_index)
 
 print("HTROF INTERPRETER")
 print("INIT MACHINE...")
