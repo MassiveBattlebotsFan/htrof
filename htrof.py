@@ -37,14 +37,14 @@ class Stack:
 
 class Machine:
     """Experimental NPN language core machine"""
-    __version__ = "v0.0.3"
+    __version__ = "v0.0.4"
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._noop,"==":self._noop,"!=":self._noop,"do":self._noop,"undo":self._noop,"end":self._noop,"cont":self._noop,"<":self._noop,">":self._noop,"goto":self._goto,"ret":self._noop,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._noop,"==":self._equ,"!=":self._inequ,"do":self._noop,"undo":self._noop,"end":self._noop,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
         self._special_symbols = {"null":None,";":"\n"}
         self._labels = {} #{"label" : stack_index}
-        self._vars = {"_wait" : 0.5} #{"varname" : value}
+        self._vars = {"_wait" : 1} #{"varname" : value}
         self._stack = Stack() #holds everything
         self._str = Stack()
         self._prog = []
@@ -73,9 +73,6 @@ class Machine:
         self._subroutines.push(-1)
         exit_msg = "SUBRT -1 EXEC EOF"
         while self._prog_index < prog_len:
-            if self._prog_index < 0:
-                exit_msg = "RET SUBRT -1"
-                break
             #print(self._prog[self._prog_index])
             if self._prog[self._prog_index][1]:
                 self._prog[self._prog_index][0]()
@@ -84,9 +81,7 @@ class Machine:
                     self._str.push(self._prog[self._prog_index][0])
                 else:
                     self._stack.push(self._prog[self._prog_index][0])
-            print(f"STACK: {self._stack._stack_array}")
-            print(f"STRS: {self._str._stack_array}")
-            print(f"VARS: {self._vars}")
+            print(f"IND: {self._prog_index}, STACK: {self._stack._stack_array}, STRS: {self._str._stack_array}, VARS: {self._vars}")
             if not self._stack.good():
                 print("ERR: STACK UNDERFLOW")
                 tmp = input("CONTINUE (y/N)?")
@@ -95,6 +90,10 @@ class Machine:
                 else:
                     exit_msg = "HALTING..."
                     break
+            if self._prog_index < 0:
+                exit_msg = "RET SUBRT -1"
+                self._prog_index += 1
+                break
             self._prog_index += 1
         print(exit_msg)
 
@@ -212,7 +211,34 @@ class Machine:
         a = self._vars.get("_wait")
         if a != None:
             time.sleep(a)
-
+    def _equ(self):
+        a = self._stack.pop()
+        b = self._stack.pop()
+        if a == b:
+            self._stack.push(1)
+        else:
+            self._stack.push(0)
+    def _inequ(self):
+        a = self._stack.pop()
+        b = self._stack.pop()
+        if a != b:
+            self._stack.push(1)
+        else:
+            self._stack.push(0)
+    def _gt(self):
+        a = self._stack.pop()
+        b = self._stack.pop()
+        if b > a:
+            self._stack.push(1)
+        else:
+            self._stack.push(0)
+    def _lt(self):
+        a = self._stack.pop()
+        b = self._stack.pop()
+        if b < a:
+            self._stack.push(1)
+        else:
+            self._stack.push(0)
 
 print("HTROF INTERPRETER")
 print("INIT MACHINE...")
