@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import time
 
 class Stack:
     """FIFO Stack for NPN lang machine"""
@@ -31,17 +32,19 @@ class Stack:
         return not self._stack_underflow
     def clear_err(self):
         self._stack_underflow = False
+    def size(self):
+        return len(self._stack_array)
 
 class Machine:
     """Experimental NPN language core machine"""
-    __version__ = "v0.0.2"
+    __version__ = "v0.0.3"
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._noop,"==":self._noop,"!=":self._noop,"do":self._noop,"undo":self._noop,"end":self._noop,"cont":self._noop,"<":self._noop,">":self._noop,"goto":self._goto,"ret":self._noop,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._noop,"==":self._noop,"!=":self._noop,"do":self._noop,"undo":self._noop,"end":self._noop,"cont":self._noop,"<":self._noop,">":self._noop,"goto":self._goto,"ret":self._noop,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
         self._special_symbols = {"null":None,";":"\n"}
         self._labels = {} #{"label" : stack_index}
-        self._vars = {} #{"varname" : value}
+        self._vars = {"_wait" : 0.5} #{"varname" : value}
         self._stack = Stack() #holds everything
         self._str = Stack()
         self._prog = []
@@ -49,6 +52,8 @@ class Machine:
         self._subroutines = Stack()
         self._conditionals = [] #[{begin_index:end_index}]
         self._current_symbol = None
+        self._symbols["clr"] = self._stack.clear_stack
+        self._symbols["pop"] = self._stack.pop
 
     def clear(self):
         self._stack.clear_stack()
@@ -62,10 +67,15 @@ class Machine:
         self._prog_index = 0
 
     def _run_prog(self):
+        self._stack.clear_stack()
         prog_len = len(self._prog)
         self._prog_index = 0
-        self._subroutines.push(0)
+        self._subroutines.push(-1)
+        exit_msg = "SUBRT -1 EXEC EOF"
         while self._prog_index < prog_len:
+            if self._prog_index < 0:
+                exit_msg = "RET SUBRT -1"
+                break
             #print(self._prog[self._prog_index])
             if self._prog[self._prog_index][1]:
                 self._prog[self._prog_index][0]()
@@ -83,9 +93,10 @@ class Machine:
                 if tmp.lower() == "y":
                     self._stack.clear_err()
                 else:
-                    print("HALTING...")
+                    exit_msg = "HALTING..."
                     break
             self._prog_index += 1
+        print(exit_msg)
 
     def _load_prog(self, lines):
         for line in lines:
@@ -194,6 +205,14 @@ class Machine:
         if type(b) == int:
             self._subroutines.push(self._prog_index)
             self._prog_index = b
+    def _ret(self):
+        a = self._subroutines.pop()
+        self._prog_index = a
+    def _wait(self):
+        a = self._vars.get("_wait")
+        if a != None:
+            time.sleep(a)
+
 
 print("HTROF INTERPRETER")
 print("INIT MACHINE...")
