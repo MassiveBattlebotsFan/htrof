@@ -34,6 +34,7 @@ class Stack:
 
 class Machine:
     """Experimental NPN language core machine"""
+    __version__ = "v0.0.2"
     def _noop(self):
         pass
     def __init__(self):
@@ -42,6 +43,7 @@ class Machine:
         self._labels = {} #{"label" : stack_index}
         self._vars = {} #{"varname" : value}
         self._stack = Stack() #holds everything
+        self._str = Stack()
         self._prog = []
         self._prog_index = 0
         self._subroutines = Stack()
@@ -54,6 +56,7 @@ class Machine:
         self._subroutines.clear_stack()
         self._conditionals.clear()
         self._vars.clear()
+        self._str.clear_stack()
         self._labels.clear()
         self._current_symbol = None
         self._prog_index = 0
@@ -67,8 +70,12 @@ class Machine:
             if self._prog[self._prog_index][1]:
                 self._prog[self._prog_index][0]()
             else:
-                self._stack.push(self._prog[self._prog_index][0])
+                if type(self._prog[self._prog_index][0]) == str:
+                    self._str.push(self._prog[self._prog_index][0])
+                else:
+                    self._stack.push(self._prog[self._prog_index][0])
             print(f"STACK: {self._stack._stack_array}")
+            print(f"STRS: {self._str._stack_array}")
             print(f"VARS: {self._vars}")
             if not self._stack.good():
                 print("ERR: STACK UNDERFLOW")
@@ -105,11 +112,12 @@ class Machine:
                     try:
                         self._current_symbol = int(line)
                     except ValueError:
-                        print("ERR: UNKNOWN SYMBOL")
                         self._current_symbol = None
                 if self._current_symbol != None:
                     self._prog.append((self._current_symbol,False))
                     self._prog_index += 1
+                else:
+                    print("ERR: UNKNOWN SYMBOL")
             else:
                 self._prog.append((self._current_symbol,True))
                 self._prog_index += 1
@@ -162,30 +170,35 @@ class Machine:
         self._stack.push(a%b)
     def _decl(self):
         a = self._stack.pop()
-        b = self._stack.pop()
-        self._vars[str(a)] = b
+        b = self._str.pop()
+        self._vars[str(b)] = a
     def _undecl(self):
-        a = self._stack.pop()
+        a = self._str.pop()
         self._vars.pop(a)
     def _ref(self):
-        a = self._stack.pop()
+        a = self._str.pop()
         b = self._vars.get(a)
         if b != None:
             self._stack.push(b)
     def _lbl(self):
-        a = self._stack.pop()
+        a = self._str.pop()
         self._labels[str(a)] = self._prog_index
     def _goto(self):
-        a = self._stack.pop()
+        a = self._str.pop()
         b = self._labels.get(str(a))
         if type(b) == int:
             self._prog_index = b
     def _subrt(self):
-        a = self._stack.pop()
+        a = self._str.pop()
         b = self._labels.get(str(a))
         if type(b) == int:
             self._subroutines.push(self._prog_index)
             self._prog_index = b
 
+print("HTROF INTERPRETER")
+print("INIT MACHINE...")
 machine = Machine()
+print("MACHINE VER:",machine.__version__)
+print("STARTING INTERFACE...")
+print("CMDS: RUN,CLEAR(ALL/STACK/PROG),QUIT")
 machine.interpreter()
