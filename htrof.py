@@ -28,6 +28,7 @@ class Stack:
             self._stack_array.append(self._last_val)
     def clear_stack(self):
         self._stack_array.clear()
+        self._stack_underflow = False
     def good(self):
         return not self._stack_underflow
     def clear_err(self):
@@ -87,7 +88,7 @@ class Machine:
         while self._prog_index < prog_len:
             #print(self._prog[self._prog_index])
             if self._prog[self._prog_index][1]:
-                if not self._init or self._prog[self._prog_index][0] in self._init_symbols:
+                if not self._init or (self._prog[self._prog_index][0] in self._init_symbols):
                     self._prog[self._prog_index][0]()
             else:
                 if type(self._prog[self._prog_index][0]) == str:
@@ -166,6 +167,7 @@ class Machine:
                         self._current_symbol = None
                 if self._current_symbol != None:
                     prog_clone.append((self._current_symbol,False))
+                    self._current_symbol = None
                     self._prog_index += 1
                 else:
                     print("ERR: UNKNOWN SYMBOL")
