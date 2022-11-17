@@ -41,7 +41,7 @@ class Machine:
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"clr":self._noop,"pop":self._noop,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._noop,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"clr":self._noop,"pop":self._noop,"dup":self._dup,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
         self._special_symbols = {"null":None,";":"\n"}
         self._labels = {} #{"label" : stack_index}
         self._vars = {"_wait" : 1} #{"varname" : value}
@@ -49,11 +49,13 @@ class Machine:
         self._str = Stack()
         self._prog = []
         self._prog_index = 0
-        self._subroutines = Stack()
+        self._init = False
+        self._subroutines = []
         self._conditionals = {} #[{begin_index:end_index}]
         self._current_symbol = None
         self._symbols["clr"] = self._stack.clear_stack
         self._symbols["pop"] = self._stack.pop
+        self._init_symbols = [self._symbols["lbl"], self._symbols["end"]]
 
     def clear(self):
         self._stack.clear_stack()
@@ -70,12 +72,13 @@ class Machine:
         self._stack.clear_stack()
         prog_len = len(self._prog)
         self._prog_index = 0
-        self._subroutines.push(-1)
+        self._subroutines.append(-1)
         exit_msg = "SUBRT -1 EXEC EOF"
         while self._prog_index < prog_len:
             #print(self._prog[self._prog_index])
             if self._prog[self._prog_index][1]:
-                self._prog[self._prog_index][0]()
+                if not self._init or self._prog[self._prog_index][0] in self._init_symbols:
+                    self._prog[self._prog_index][0]()
             else:
                 if type(self._prog[self._prog_index][0]) == str:
                     self._str.push(self._prog[self._prog_index][0])
@@ -169,7 +172,12 @@ class Machine:
             prog_input = prog_input.split()
             print(prog_input)
             self._load_prog(prog_input)
-        
+    
+    def _set_init(self):
+        self._init = True
+    def _end(self):
+        if self._init:
+            self._init = False
     def _add(self):
         a = self._stack.pop()
         b = self._stack.pop()
@@ -218,7 +226,7 @@ class Machine:
         a = self._str.pop()
         b = self._labels.get(str(a))
         if type(b) == int:
-            self._subroutines.push(self._prog_index)
+            self._subroutines.append(self._prog_index)
             self._prog_index = b
     def _ret(self):
         a = self._subroutines.pop()
@@ -244,14 +252,14 @@ class Machine:
     def _gt(self):
         a = self._stack.pop()
         b = self._stack.pop()
-        if b > a:
+        if a > b:
             self._stack.push(1)
         else:
             self._stack.push(0)
     def _lt(self):
         a = self._stack.pop()
         b = self._stack.pop()
-        if b < a:
+        if a < b:
             self._stack.push(1)
         else:
             self._stack.push(0)
@@ -263,6 +271,9 @@ class Machine:
         a = self._stack.pop()
         if a != 0:
             self._prog_index = self._conditionals.get(self._prog_index)
+    def _dup(self):
+        a = self._stack.pop()
+        self._stack.push(a,a)
 
 print("HTROF INTERPRETER")
 print("INIT MACHINE...")
