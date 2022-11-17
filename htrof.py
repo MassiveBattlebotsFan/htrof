@@ -24,7 +24,7 @@ class Stack:
     def push(self, *items):
         for item in items:
             self._last_val = item
-            self._stack_array.insert(0,self._last_val)
+            self._stack_array.append(self._last_val)
     def clear_stack(self):
         self._stack_array.clear()
     def good(self):
@@ -45,7 +45,6 @@ class Machine:
         self._prog = []
         self._prog_index = 0
         self._subroutines = Stack()
-        self._subroutines.push(0)
         self._conditionals = [] #[{begin_index:end_index}]
         self._current_symbol = None
 
@@ -62,14 +61,15 @@ class Machine:
     def _run_prog(self):
         prog_len = len(self._prog)
         self._prog_index = 0
+        self._subroutines.push(0)
         while self._prog_index < prog_len:
             #print(self._prog[self._prog_index])
             if self._prog[self._prog_index][1]:
                 self._prog[self._prog_index][0]()
             else:
                 self._stack.push(self._prog[self._prog_index][0])
-            print(self._stack._stack_array)
-            print(self._vars)
+            print(f"STACK: {self._stack._stack_array}")
+            print(f"VARS: {self._vars}")
             if not self._stack.good():
                 print("ERR: STACK UNDERFLOW")
                 tmp = input("CONTINUE (y/N)?")
