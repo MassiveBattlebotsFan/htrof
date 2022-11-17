@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import time
+import time, sys
 
 class Stack:
     """FIFO Stack for NPN lang machine"""
@@ -37,12 +37,15 @@ class Stack:
 
 class Machine:
     """Experimental RPN language core machine"""
-    __version__ = "v0.0.5"
+    __version__ = "v0.0.6"
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"clr":self._noop,"pop":self._noop,"dup":self._dup,"decl":self._decl,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"cont":self._noop,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._noop,"dump":self._noop,"open":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"clr":self._noop,"pop":self._noop,"tostr":self._tostr,"dup":self._dup,"decl":self._decl,"declstr":self._declstr,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._read,"dump":self._dump,"open":self._noop,"drop":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait,"setobj":self._noop}
         self._special_symbols = {"null":None,";":"\n"}
+        self._special_objects = {"stdio":(sys.stdin,sys.stdout)}
+        self._current_object = "stdio"
+        self._objects = {}
         self._labels = {} #{"label" : stack_index}
         self._vars = {"_wait" : 1} #{"varname" : value}
         self._stack = Stack() #holds everything
@@ -56,13 +59,20 @@ class Machine:
         self._symbols["clr"] = self._stack.clear_stack
         self._symbols["pop"] = self._stack.pop
         self._init_symbols = [self._symbols["lbl"], self._symbols["end"]]
-
+        self._debug = False
+    def debug_mode(self, val:bool):
+        self._debug = val
     def clear(self):
         self._stack.clear_stack()
         self._prog.clear()
-        self._subroutines.clear_stack()
+        self._subroutines.clear()
         self._conditionals.clear()
         self._vars.clear()
+        for object in self._objects:
+            object[0].close()
+            object[1].close()
+        self._objects.clear()
+        self._current_object = "stdio"
         self._str.clear_stack()
         self._labels.clear()
         self._current_symbol = None
@@ -84,7 +94,8 @@ class Machine:
                     self._str.push(self._prog[self._prog_index][0])
                 else:
                     self._stack.push(self._prog[self._prog_index][0])
-            print(f"IND: {self._prog_index}, STACK: {self._stack._stack_array}, STRS: {self._str._stack_array}, VARS: {self._vars}")
+            if self._debug:
+                print(f"IND: {self._prog_index}, STACK: {self._stack._stack_array}, STRS: {self._str._stack_array}, VARS: {self._vars}")
             if not self._stack.good():
                 print("ERR: STACK UNDERFLOW")
                 tmp = input("CONTINUE (y/N)?")
@@ -98,12 +109,36 @@ class Machine:
                 self._prog_index += 1
                 break
             self._prog_index += 1
-        print(exit_msg)
+        print("\n"+exit_msg)
 
-    def _load_prog(self, lines):
+    def _load_prog(self, data):
         old_ind = self._prog_index
         prog_clone = self._prog
         current_cond = None
+        quote_symbol = False
+        lines = []
+        buffer = ""
+        for dat in data:
+            for char in dat:
+                if char == "\"" and not quote_symbol:
+                    quote_symbol = True
+                    buffer += char
+                elif char == "\"" and quote_symbol:
+                    quote_symbol = False
+                    buffer += char
+                elif not quote_symbol:
+                    if char.isspace():
+                        lines.append(buffer)
+                        buffer = ""
+                        continue
+                    else:
+                        buffer += char
+                else:
+                    buffer += char
+            if len(buffer) > 0:
+                lines.append(buffer)
+                buffer = ""
+        #print(lines)
         for line in lines:
             self._current_symbol = self._symbols.get(line.lower())
             if self._current_symbol == None:
@@ -150,9 +185,15 @@ class Machine:
 
     def interpreter(self):
         while True:
-            prog_input = input(f"{self._prog_index}> ")
+            print(f"{self._prog_index}> ",end='',flush=True)
+            prog_input = sys.stdin.readline()[:-1]
+            prog_input = prog_input.replace("\\n","\n")
             if prog_input.lower() == "run":
                 self._run_prog()
+                continue
+            if prog_input.lower() == "debug":
+                self.debug_mode(not self._debug)
+                print("Debug:",str(self._debug))
                 continue
             if prog_input.lower() == "quit":
                 break
@@ -169,10 +210,29 @@ class Machine:
             if prog_input.lower() == "list":
                 print(self._prog)
                 continue
-            prog_input = prog_input.split()
+            #prog_input = prog_input.split()
             print(prog_input)
-            self._load_prog(prog_input)
+            self._load_prog([prog_input])
     
+    def _tostr(self):
+        a = self._stack.pop()
+        self._str.push(str(a))
+    def _read(self):
+        a = self._special_objects.get(self._current_object)
+        if a == None:
+            a = self._objects.get(self._current_object)
+            if a == None:
+                return
+        a = a[0]
+        self._str.push(a.readline()[:-1].replace("\\n","\n"))
+    def _dump(self):
+        a = self._special_objects.get(self._current_object)
+        if a == None:
+            a = self._objects.get(self._current_object)
+            if a == None:
+                return
+        a = a[1]
+        a.write(self._str.pop())
     def _set_init(self):
         self._init = True
     def _end(self):
@@ -209,11 +269,18 @@ class Machine:
     def _undecl(self):
         a = self._str.pop()
         self._vars.pop(a)
+    def _declstr(self):
+        a = self._str.pop()
+        b = self._str.pop()
+        self._vars[str(b)] = a
     def _ref(self):
         a = self._str.pop()
         b = self._vars.get(a)
         if b != None:
-            self._stack.push(b)
+            if type(b) == str:
+                self._str.push(b)
+            else:
+                self._stack.push(b)
     def _lbl(self):
         a = self._str.pop()
         self._labels[str(a)] = self._prog_index
