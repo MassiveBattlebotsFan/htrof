@@ -38,17 +38,18 @@ class Stack:
 
 class Machine:
     """Experimental RPN language core machine"""
-    __version__ = "v0.0.6"
+    __version__ = "v0.0.7"
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"clr":self._noop,"pop":self._noop,"tostr":self._tostr,"dup":self._dup,"decl":self._decl,"declstr":self._declstr,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._read,"dump":self._dump,"open":self._noop,"drop":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait,"setobj":self._noop}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"cat":self._cat,"split":self._split,"dmpnl":self._dmpnl,"clr":self._noop,"clrstr":self._noop,"pop":self._noop,"popstr":self._noop,"tostr":self._tostr,"dup":self._dup,"dupstr":self._dupstr,"decl":self._decl,"declstr":self._declstr,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._read,"dump":self._dump,"open":self._noop,"drop":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait,"setobj":self._noop}
         self._special_symbols = {"null":None,";":"\n"}
         self._special_objects = {"stdio":(sys.stdin,sys.stdout)}
         self._current_object = "stdio"
         self._objects = {}
         self._labels = {} #{"label" : stack_index}
-        self._vars = {"_wait" : 1} #{"varname" : value}
+        self._sys_vars = {"_wait" : 1, "_nl" : '\n'} #{"varname" : value}
+        self._vars = {}
         self._stack = Stack() #holds everything
         self._str = Stack()
         self._prog = []
@@ -58,6 +59,8 @@ class Machine:
         self._conditionals = {} #[{begin_index:end_index}]
         self._current_symbol = None
         self._symbols["clr"] = self._stack.clear_stack
+        self._symbols["clrstr"] = self._str.clear_stack
+        self._symbols["popstr"] = self._str.pop
         self._symbols["pop"] = self._stack.pop
         self._init_symbols = [self._symbols["lbl"], self._symbols["end"]]
         self._debug = False
@@ -97,11 +100,12 @@ class Machine:
                     self._stack.push(self._prog[self._prog_index][0])
             if self._debug:
                 print(f"IND: {self._prog_index}, STACK: {self._stack._stack_array}, STRS: {self._str._stack_array}, VARS: {self._vars}")
-            if not self._stack.good():
+            if not self._stack.good() or not self._str.good():
                 print("ERR: STACK UNDERFLOW")
                 tmp = input("CONTINUE (y/N)?")
                 if tmp.lower() == "y":
                     self._stack.clear_err()
+                    self._str.clear_err()
                 else:
                     exit_msg = "HALTING..."
                     break
@@ -215,7 +219,25 @@ class Machine:
             #prog_input = prog_input.split()
             print(prog_input)
             self._load_prog([prog_input])
-    
+    def _dmpnl(self):
+        a = self._special_objects.get(self._current_object)
+        if a == None:
+            a = self._objects.get(self._current_object)
+            if a == None:
+                return
+        a = a[1]
+        a.write("\n")
+    def _split(self):
+        a = self._stack.pop()
+        b = self._str.pop()
+        if type(a) == int and a < len(b) and a >= 0:
+            self._str.push(b[:a],b[a:])
+        else:
+            self._str.push(b)
+    def _cat(self):
+        a = self._str.pop()
+        b = self._str.pop()
+        self._str.push(a+b)
     def _tostr(self):
         a = self._stack.pop()
         self._str.push(str(a))
@@ -267,7 +289,11 @@ class Machine:
     def _decl(self):
         a = self._stack.pop()
         b = self._str.pop()
-        self._vars[str(b)] = a
+        if self._sys_vars.get(str(b)) != None:
+            self._sys_vars[str(b)] = a
+            return
+        else:
+            self._vars[str(b)] = a
     def _undecl(self):
         a = self._str.pop()
         self._vars.pop(a)
@@ -277,7 +303,9 @@ class Machine:
         self._vars[str(b)] = a
     def _ref(self):
         a = self._str.pop()
-        b = self._vars.get(a)
+        b = self._sys_vars.get(a)
+        if b == None:
+            b = self._vars.get(a)
         if b != None:
             if type(b) == str:
                 self._str.push(b)
@@ -343,6 +371,9 @@ class Machine:
     def _dup(self):
         a = self._stack.pop()
         self._stack.push(a,a)
+    def _dupstr(self):
+        a = self._str.pop()
+        self._str.push(a,a)
 
 print("HTROF INTERPRETER")
 print("INIT MACHINE...")
