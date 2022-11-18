@@ -7,6 +7,7 @@ class Stack:
         self._stack_array = []
         self._last_val = None
         self._stack_underflow = False
+        self._FIFO = True
     def pop(self):
         if len(self._stack_array) > 0:
             self._last_val = self._stack_array[0]
@@ -25,7 +26,10 @@ class Stack:
     def push(self, *items):
         for item in items:
             self._last_val = item
-            self._stack_array.append(self._last_val)
+            if self._FIFO:
+                self._stack_array.append(self._last_val)
+            else:
+                self._stack_array.insert(0, self._last_val)
     def clear_stack(self):
         self._stack_array.clear()
         self._stack_underflow = False
@@ -35,6 +39,8 @@ class Stack:
         self._stack_underflow = False
     def size(self):
         return len(self._stack_array)
+    def toggle_mode(self):
+        self._FIFO = not self._FIFO
 
 class Machine:
     """Experimental RPN language core machine"""
@@ -42,7 +48,7 @@ class Machine:
     def _noop(self):
         pass
     def __init__(self):
-        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"init":self._set_init,"cat":self._cat,"split":self._split,"dmpnl":self._dmpnl,"clr":self._noop,"clrstr":self._noop,"pop":self._noop,"popstr":self._noop,"tostr":self._tostr,"dup":self._dup,"dupstr":self._dupstr,"decl":self._decl,"declstr":self._declstr,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._read,"dump":self._dump,"open":self._noop,"drop":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait,"setobj":self._noop}
+        self._symbols = {"+":self._add,"-":self._sub,"*":self._mul,"/":self._div,"%":self._mod,"pm":self._stack_mode,"init":self._set_init,"cat":self._cat,"split":self._split,"dmpnl":self._dmpnl,"clr":self._noop,"clrstr":self._noop,"pop":self._noop,"popstr":self._noop,"tostr":self._tostr,"dup":self._dup,"dupstr":self._dupstr,"decl":self._decl,"declstr":self._declstr,"undecl":self._undecl,"lbl":self._lbl,"if":self._if,"=":self._equ,"!=":self._inequ,"unif":self._unif,"end":self._end,"<":self._lt,">":self._gt,"goto":self._goto,"ret":self._ret,"subrt":self._subrt,"read":self._read,"dump":self._dump,"open":self._noop,"drop":self._noop,"exec":self._noop,"ref":self._ref,"wait":self._wait,"setobj":self._noop}
         self._special_symbols = {"null":None,";":"\n"}
         self._special_objects = {"stdio":(sys.stdin,sys.stdout)}
         self._current_object = "stdio"
@@ -81,9 +87,13 @@ class Machine:
         self._labels.clear()
         self._current_symbol = None
         self._prog_index = 0
-
+        self._stack._FIFO = True
+        self._str._FIFO = True
     def _run_prog(self):
         self._stack.clear_stack()
+        self._str.clear_stack()
+        self._stack._FIFO = True
+        self._str._FIFO = True
         prog_len = len(self._prog)
         self._prog_index = 0
         self._subroutines.append(-1)
@@ -124,6 +134,7 @@ class Machine:
         lines = []
         buffer = ""
         for dat in data:
+            dat = dat.strip()
             for char in dat:
                 if char == "\"" and not quote_symbol:
                     quote_symbol = True
@@ -145,6 +156,8 @@ class Machine:
                 buffer = ""
         #print(lines)
         for line in lines:
+            if len(line) == 0:
+                continue
             self._current_symbol = self._symbols.get(line.lower())
             if self._current_symbol == None:
                 if line.lower()[0:2] == "0x":
@@ -219,6 +232,10 @@ class Machine:
             #prog_input = prog_input.split()
             print(prog_input)
             self._load_prog([prog_input])
+
+    def _stack_mode(self):
+        self._str.toggle_mode()
+        self._stack.toggle_mode()
     def _dmpnl(self):
         a = self._special_objects.get(self._current_object)
         if a == None:
@@ -379,6 +396,12 @@ print("HTROF INTERPRETER")
 print("INIT MACHINE...")
 machine = Machine()
 print("MACHINE VER:",machine.__version__)
+if len(sys.argv) > 1:
+    print(f"ARGUMENT PASSED, LOADING [{sys.argv[1]}] AS FILE")
+    with open(sys.argv[1], "r") as file:
+        text = file.readlines()
+    machine._load_prog(text)
+    print("PROG LOADED")
 print("STARTING INTERFACE...")
 print("CMDS: RUN,CLEAR(ALL/STACK/PROG),QUIT")
 machine.interpreter()
